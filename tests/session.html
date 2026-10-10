@@ -1,0 +1,86 @@
+<!doctype html><html><head><meta charset="utf-8"><style>iframe{width:1100px;height:1100px;border:0}</style></head><body><pre id="results">RUNNING</pre><iframe id="app" src="../index.html"></iframe><script>
+const frame=document.getElementById('app');
+frame.onload=async()=>{
+ const w=frame.contentWindow,d=w.document,run=code=>w.eval(code),assert=(value,message)=>{if(!value)throw Error(message)},results=[];
+ const savedNames=w.localStorage.getItem('starpath-show-names'),savedBest=w.localStorage.getItem('starpath-blank-best');
+ const originalURL=w.URL.createObjectURL,originalClick=w.HTMLAnchorElement.prototype.click,originalImport=w.importSessionFile;
+ try {
+  assert(typeof originalImport==='function','session script loaded');
+  let download,blob,importPromise;
+  w.URL.createObjectURL=value=>{blob=value;return 'blob:test-session';};
+  w.HTMLAnchorElement.prototype.click=function(){download={url:this.href,name:this.download};};
+  w.importSessionFile=file=>(importPromise=originalImport(file));
+  async function importFile(file){const transfer=new w.DataTransfer();transfer.items.add(file);d.getElementById('session-file').files=transfer.files;d.getElementById('session-file').dispatchEvent(new w.Event('change'));await importPromise;}
+  const fileFor=value=>new w.File([typeof value==='string'?value:JSON.stringify(value)],'saved-session.json',{type:'application/json'});
+  function state(){return run('JSON.stringify({score,found,region,index,view,chartViews,attempts,hinted,mistakes,showNames,showLines,lineEditing,lineStart,connections:[...lineOverrides],rememberedTarget,targetPage,mode:$("mode").value,library:$("target-library").value,query:$("star-query").value,best})');}
+  d.getElementById('mode').value='guided';d.getElementById('target-library').value='star';
+  run('region=0;reset();showNames=true;chooseCatalogStar("Betelgeuse")');d.getElementById('hint').click();
+  run('guessAt(points.Betelgeuse[0]+300,points.Betelgeuse[1]+300);guessAt(...points.Betelgeuse);chooseCatalogStar("Rigel");guessAt(...points.Rigel);chooseCatalogStar("M42");guessAt(...points.M42);setLineEditing(true);mapClick(...points.Betelgeuse);mapClick(...points.Rigel);mapClick(...points.Alnilam);mapClick(...points.Alnitak);chooseCatalogStar("M31");view={x:100,y:200,w:400,h:280};applyView()');
+  d.getElementById('names').click();d.getElementById('lines').click();
+  run('changeChart(10);view={x:250,y:100,w:500,h:350};applyView()');d.getElementById('hint').click();
+  run('guessAt(points.M31[0]+1000,points.M31[1]+1000);guessAt(points.M31[0]+1000,points.M31[1]+1000);changeChart(11);view={x:100,y:50,w:600,h:420};applyView()');
+  d.getElementById('star-query').value='m3';d.getElementById('star-query').dispatchEvent(new w.Event('input'));
+  assert(run('score===265&&found.length===3&&hinted&&mistakes===2'),'real star/Messier score and penalties');
+  const beforeExport=state();d.getElementById('export-session').click();
+  assert(state()===beforeExport,'export does not mutate the current session');
+  assert(download.url==='blob:test-session'&&/^starpath-session-.*\.json$/.test(download.name),'dated session download');
+  assert(blob.type==='application/json','JSON download type');
+  document.getElementById('results').textContent='RUNNING: reading the exported file';
+  const saved=JSON.parse(await blob.text());
+  assert(saved.score===265&&saved.found.includes('Betelgeuse')&&saved.found.includes('M42'),'file includes score and both object kinds');
+  assert(saved.chart.includes('LEO')&&saved.target==='M31'&&saved.chartViews.length===3,'file includes target and every visited chart view');
+  assert(saved.connections.some(line=>line.enabled)&&saved.connections.some(line=>!line.enabled),'file retains drawn and removed lines');
+  results.push('PASS: export button downloads a dated JSON file with real score, discoveries, attempts, views and added/removed connections without changing gameplay');
+  let pickerOpened=false;const fileInput=d.getElementById('session-file');fileInput.click=()=>{pickerOpened=true;};d.getElementById('import-session').click();assert(pickerOpened,'import button opens file picker');
+  d.getElementById('mode').value='expert';d.getElementById('mode').dispatchEvent(new w.Event('change'));
+  run('changeChart(3);showNames=true;best=9000');w.localStorage.setItem('starpath-blank-best','9000');
+  document.getElementById('results').textContent='RUNNING: importing through the file picker';
+  await importFile(new w.File([blob],download.name,{type:'application/json'}));
+  assert(run('score===265&&found.length===3&&found.includes("M42")&&region===11&&view.w===600&&view.x===100&&hinted&&mistakes===2&&!showNames&&!showLines&&lineOverrides.size===2&&!lineEditing'),'full session restored through native file input');
+  assert(d.getElementById('target').textContent==='M31'&&d.getElementById('target-library').value==='messier'&&d.getElementById('mode').value==='guided','target, library and difficulty restored');
+  assert(!d.querySelector('[data-star="M31"]')&&!d.querySelector('.star-label')&&!d.querySelector('[data-grid]'),'hidden target and display settings restored');
+  assert(d.getElementById('chart-choice').value==='11'&&d.querySelector('[data-region="11"]').classList.contains('active'),'seasonal chart controls restored');
+  assert(d.getElementById('star-query').value==='m3'&&d.querySelector('#targets .selected').textContent.includes('M31'),'search and selected picker target restored');
+  assert(run('best===9000')&&w.localStorage.getItem('starpath-blank-best')==='9000','existing higher personal best retained');
+  assert(fileInput.value===''&&!d.getElementById('import-session').disabled&&!d.getElementById('export-session').disabled,'input cleared for re-import and buttons enabled');
+  run('changeChart(10)');assert(run('view.w===500&&view.x===250'),'autumn zoom restored');run('changeChart(0)');assert(run('view.w===400&&view.y===200'),'winter zoom restored');
+  assert([...d.querySelectorAll('[data-edge]')].some(node=>node.dataset.edge===run('connectionKey("Betelgeuse","Rigel")')),'manual connection restored with guides off');
+  d.getElementById('lines').click();assert(![...d.querySelectorAll('[data-edge]')].some(node=>node.dataset.edge===run('connectionKey("Alnilam","Alnitak")')),'removed automatic guide remains removed');
+  run('changeChart(11);guessAt(...points.M31)');assert(run('score===320&&found.includes("M31")'),'restored target keeps hint and wrong-guess penalties');run('guessAt(...points.M31)');assert(run('score===320'),'found target cannot score twice after import');
+  results.push('PASS: native file import, target hiding, seasonal controls, names/guides, saved chart views, connections, search, personal best and resumed scoring');
+  const stable=state(),storedPreference=w.localStorage.getItem('starpath-show-names');
+  const invalid=[['broken JSON','{'],['wrong format',{...saved,format:'other-app'}],['future version',{...saved,version:2}]];
+  function bad(label,mutate){const data=JSON.parse(JSON.stringify(saved));mutate(data);invalid.push([label,data]);}
+  bad('unknown discovery',data=>data.found.push('Unknown star'));bad('duplicate discovery',data=>data.found.push(data.found[0]));
+  bad('invalid score',data=>data.score=1000000);bad('negative score',data=>data.score=-1);bad('fractional score',data=>data.score=.5);
+  bad('unknown chart',data=>data.chart='Unknown chart');bad('invalid library',data=>data.library='planet');bad('invalid difficulty',data=>data.mode='easy');
+  bad('prototype target',data=>data.target='__proto__');bad('wrong target kind',data=>data.target='Sirius');
+  bad('invalid view',data=>data.view.w=-1);bad('inconsistent view',data=>data.view.x=0);bad('invalid saved chart view',data=>data.chartViews[0].view.h=0);
+  bad('duplicate chart view',data=>data.chartViews.push(data.chartViews[0]));bad('invalid hint state',data=>data.attempts[0].hinted='yes');bad('negative mistakes',data=>data.attempts[0].mistakes=-1);
+  bad('missing active attempt',data=>data.attempts=data.attempts.filter(attempt=>attempt.name!==data.target));bad('invalid display preference',data=>data.display.names='yes');
+  bad('Messier line endpoint',data=>data.connections[0].stars[0]='M42');bad('hidden star endpoint',data=>data.connections[0].stars[0]='Sirius');bad('self connection',data=>data.connections[0].stars[0]=data.connections[0].stars[1]);
+  bad('duplicate reversed connection',data=>data.connections.push({...data.connections[0],stars:[...data.connections[0].stars].reverse()}));bad('invalid remembered target',data=>data.rememberedTargets.star='M1');bad('invalid picker',data=>data.picker.page=-1);
+  for(const [label,data] of invalid){await importFile(fileFor(data));assert(d.getElementById('session-status').classList.contains('error'),'reject '+label);assert(state()===stable&&w.localStorage.getItem('starpath-show-names')===storedPreference,'preserve current session for '+label);}
+  let readOversized=false;await originalImport({size:5*1024*1024+1,text:()=>{readOversized=true;return Promise.resolve('{}');}});assert(!readOversized&&state()===stable,'oversized file rejected before reading');
+  await originalImport({size:1,text:()=>Promise.reject(Error('read failed'))});assert(state()===stable,'read failures leave current session unchanged');
+  results.push('PASS: malformed, incompatible and invalid files, duplicate records, unknown objects, unsafe connections, oversized files and read failures preserve progress and preferences');
+  await importFile(fileFor('\uFEFF'+JSON.stringify(saved)));assert(run('score===265'),'UTF-8 BOM accepted');
+  const completed=JSON.parse(JSON.stringify(saved));completed.target='M42';completed.rememberedTargets.messier='M42';completed.picker.query='';await importFile(fileFor(completed));
+  assert(run('solved')&&d.getElementById('hint').hidden,'completed target restored as solved');run('guessAt(...points.M42)');assert(run('score===265'),'completed imported target never awards duplicate points');
+  d.getElementById('target-library').value='star';d.getElementById('mode').value='expert';run('reset();chooseCatalogStar("Procyon");guessAt(...points.Procyon)');
+  d.getElementById('export-session').click();const expertFile=new w.File([blob],'expert.json');d.getElementById('mode').value='guided';run('reset()');await importFile(expertFile);
+  assert(run('score===200&&solved')&&d.getElementById('mode').value==='expert'&&d.getElementById('hint').hidden&&!d.querySelector('[data-grid]'),'Expert session restored without reset');
+  run('best=0');await importFile(expertFile);assert(run('best===200'),'import raises a lower personal best');
+  run('reset()');d.getElementById('export-session').click();const emptyFile=new w.File([blob],'empty.json');run('guessAt(...points[missions[region].targets[index][0]])');await importFile(emptyFile);assert(run('score===0&&found.length===0&&!solved'),'empty session round trip');
+  frame.style.width='320px';const bounds=d.querySelector('.session-tools').getBoundingClientRect();
+  assert([...d.querySelectorAll('.session-actions button')].every(button=>{const box=button.getBoundingClientRect();return box.left>=bounds.left&&box.right<=bounds.right&&box.width>=button.scrollWidth;}),'session controls fit mobile viewport');
+  results.push('PASS: BOM, solved and Expert sessions, personal best increases, empty session and mobile controls');
+  document.getElementById('results').textContent=results.join('\n');
+ } catch(error){document.getElementById('results').textContent='FAIL: '+error.stack;}
+ finally {
+  w.URL.createObjectURL=originalURL;w.HTMLAnchorElement.prototype.click=originalClick;w.importSessionFile=originalImport;
+  if(savedNames===null)w.localStorage.removeItem('starpath-show-names');else w.localStorage.setItem('starpath-show-names',savedNames);
+  if(savedBest===null)w.localStorage.removeItem('starpath-blank-best');else w.localStorage.setItem('starpath-blank-best',savedBest);
+ }
+};
+</script></body></html>
