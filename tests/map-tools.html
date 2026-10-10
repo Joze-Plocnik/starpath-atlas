@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><style>iframe{width:1100px;height:1000px;border:0}</style></head><body><pre id="results">RUNNING</pre><iframe id="app" src="../index.html"></iframe><script>
+const frame=document.getElementById('app');
+frame.onload=()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval(code),assert=(value,message)=>{if(!value)throw Error(message)},results=[],savedPreference=w.localStorage.getItem('starpath-show-names');try{
+ function key(name){d.getElementById('sky').dispatchEvent(new w.KeyboardEvent('keydown',{key:name,bubbles:true,cancelable:true}));}
+ function aim(name){run('cursor=[...points['+JSON.stringify(name)+']]');key('Enter');}
+ function pair(a,b){aim(a);aim(b);}
+ function edge(a,b){const target=run('connectionKey('+JSON.stringify(a)+','+JSON.stringify(b)+')');return [...d.querySelectorAll('[data-edge]')].find(node=>node.dataset.edge===target);}
+ d.getElementById('mode').value='guided';d.getElementById('target-library').value='star';run('region=0;reset();showNames=true;for(const name of ["Betelgeuse","Rigel","Bellatrix"]){chooseCatalogStar(name);guessAt(...points[name])}chooseCatalogStar("Sirius");view={x:430,y:310,w:350,h:245};applyView()');
+ const initial=run('JSON.stringify({view,region,score,found,index,hinted,mistakes})');
+ assert(d.querySelector('.star-label'),'labels initially visible');d.getElementById('names').click();assert(!d.querySelector('.star-label'),'all map names hidden');assert(d.getElementById('names').getAttribute('aria-pressed')==='false','name button state');assert(w.localStorage.getItem('starpath-show-names')==='false','saved name preference');
+ run('zoomAt(.8);chooseCatalogStar("Procyon");changeChart(1);changeChart(0)');assert(!d.querySelector('.star-label'),'names stay hidden after zoom, selection and chart changes');
+ d.getElementById('names').click();assert(d.querySelector('.star-label'),'names restored');run('chooseCatalogStar("Sirius");view={x:430,y:310,w:350,h:245};applyView()');assert(run('score===300&&found.length===3'),'display changes preserve score and discovered stars');
+ results.push('PASS: name toggle, persistent preference, pan/zoom and target/chart retention');
+ d.getElementById('edit-lines').click();assert(run('lineEditing'),'editing enabled');assert(d.getElementById('line-status').hidden===false,'instructions visible');
+ aim('Betelgeuse');assert(d.querySelector('.line-selection'),'first endpoint highlighted');aim('Rigel');assert(edge('Betelgeuse','Rigel')?.classList.contains('custom-line'),'new custom connection');
+ const state=run('JSON.stringify({view,region,score,found,index,hinted,mistakes})');run('mapClick(0,0);guessAt(...points.Sirius)');assert(run('JSON.stringify({view,region,score,found,index,hinted,mistakes})')===state,'editing cannot score, penalize or discover a target');
+ pair('Rigel','Betelgeuse');assert(!edge('Betelgeuse','Rigel'),'pair removes custom line in either direction');pair('Betelgeuse','Rigel');assert(edge('Betelgeuse','Rigel'),'pair restores custom line');
+ assert(edge('Betelgeuse','Bellatrix'),'automatic Orion line exists');pair('Betelgeuse','Bellatrix');assert(!edge('Betelgeuse','Bellatrix'),'automatic line can be removed');run('renderSky()');assert(!edge('Betelgeuse','Bellatrix'),'automatic removal survives redraw');pair('Bellatrix','Betelgeuse');assert(edge('Betelgeuse','Bellatrix'),'removed automatic line can be restored');
+ assert(d.querySelectorAll('[data-edge]').length===new Set([...d.querySelectorAll('[data-edge]')].map(node=>node.dataset.edge)).size,'no duplicate connections');
+ aim('Betelgeuse');aim('Betelgeuse');assert(run('lineStart===null'),'same endpoint cancels without self line');aim('Betelgeuse');key('Escape');assert(run('lineEditing&&lineStart===null'),'Escape cancels endpoint');key('Escape');assert(!run('lineEditing'),'Escape exits editing');
+ results.push('PASS: keyboard editing, manual add/remove, automatic line removal, no duplicate/self lines and Escape cancellation');
+ d.getElementById('edit-lines').click();run('mapClick(...points.Sirius)');assert(run('lineStart===null&&!found.includes("Sirius")'),'hidden stars cannot become endpoints');
+ run('setLineEditing(false);chooseCatalogStar("M42");guessAt(...points.M42);setLineEditing(true);mapClick(...points.M42)');assert(run('lineStart===null'),'Messier objects excluded from star connections');
+ d.getElementById('lines').click();assert(!d.querySelector('[data-grid]'),'automatic guides off');assert(edge('Betelgeuse','Rigel'),'custom lines stay visible without automatic guides');
+ run('changeChart(1);changeChart(0)');assert(edge('Betelgeuse','Rigel'),'custom lines retained across charts');
+ const beforeZoom=edge('Betelgeuse','Rigel').getAttribute('points');run('zoomAt(.8)');assert(edge('Betelgeuse','Rigel').getAttribute('points')===beforeZoom,'connection endpoints keep real chart coordinates');
+ run('chooseCatalogStar("Sirius")');assert(!run('lineEditing'),'selecting target returns to guessing');assert(edge('Betelgeuse','Rigel'),'target selection keeps connections');run('guessAt(...points.Sirius)');assert(run('found.includes("Sirius")&&score===500'),'guessing resumes with unchanged previous score');
+ d.getElementById('names').click();run('reset()');assert(run('lineOverrides.size===0&&!lineEditing&&lineStart===null'),'new expedition clears connections and editing');assert(!d.querySelector('.star-label'),'name preference survives reset');
+ d.getElementById('mode').value='expert';run('reset();chooseCatalogStar("Betelgeuse");guessAt(...points.Betelgeuse);chooseCatalogStar("Rigel");guessAt(...points.Rigel);setLineEditing(true)');pair('Betelgeuse','Rigel');assert(edge('Betelgeuse','Rigel'),'manual lines work in expert mode');assert(!d.querySelector('[data-grid]'),'expert automatic guides stay off');
+ results.push('PASS: hidden-target protection, guide independence, chart/zoom retention, resumed guesses, reset and expert mode');
+ document.getElementById('results').textContent=results.join('\n');
+}catch(error){document.getElementById('results').textContent='FAIL: '+error.stack;}finally{if(savedPreference===null)w.localStorage.removeItem('starpath-show-names');else w.localStorage.setItem('starpath-show-names',savedPreference);}};
+</script></body></html>
