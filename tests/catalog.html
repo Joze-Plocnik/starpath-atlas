@@ -1,0 +1,75 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body><pre id="results">RUNNING</pre><iframe id="app" src="../index.html"></iframe><script>
+const frame=document.getElementById('app');
+frame.onload=()=>{try{
+ const w=frame.contentWindow,d=w.document,run=code=>w.eval(code),assert=(v,m)=>{if(!v)throw Error(m)},results=[];
+ assert(run('brightStars.length')===1637,'catalog count');
+ assert(run('brightStars.some(s=>s.mag===5)'),'inclusive magnitude boundary');
+ assert(run('brightStars.every(s=>s.mag<=5 && Number.isFinite(s.ra) && Number.isFinite(s.dec))'),'catalog bounds');
+ function search(q){d.getElementById('star-query').value=q;d.getElementById('star-search').dispatchEvent(new w.Event('submit',{cancelable:true}));}
+ for(const q of ['alpha orion','alpha Orionis','α Ori','Betelguese','Betelgeuse']){search(q);assert(d.getElementById('target').textContent==='Betelgeuse','alias '+q);assert(d.getElementById('search-feedback').textContent==='','resolved alias '+q);}
+ for(const q of ['40 Eridani','40 Eri','HIP 19849','HD 26965']){search(q);assert(run('Math.abs(stars[missions[region].targets[index][0]].ra-4.2545)<.01'),'Flamsteed or numeric identifier '+q);}
+ results.push('PASS: common names, Bayer names, Greek letters and spelling alias');
+ search('alpha');assert(d.getElementById('search-feedback').textContent.includes('Several'),'ambiguous input');
+ search('nonsense');assert(d.getElementById('search-feedback').textContent.includes('No matching'),'unknown input');
+ results.push('PASS: ambiguous and unknown search feedback');
+ for(const name of run('brightStars.filter((s,i)=>s.mag<=2||i%100===0||s.mag===5).map(s=>s.name)')){
+   run('region=0;reset()');search(name);
+   assert(d.getElementById('target').textContent===name,'selection '+name);
+   assert(!d.querySelector('[data-star="'+name+'"]'),'hidden target '+name);
+   assert(run('points[missions[region].targets[index][0]].every(Number.isFinite)'),'finite point '+name);
+   assert(run('region===0'),'search must not change reference '+name);
+   run('const p=points[missions[region].targets[index][0]];view={x:p[0]-500,y:p[1]-350,w:1000,h:700};applyView()');
+   assert(run('separation(unproject(...points[missions[region].targets[index][0]]),stars[missions[region].targets[index][0]])<1e-5'),'projection '+name);
+   run('guessAt(...points[missions[region].targets[index][0]])');
+   assert(run('solved && found.includes(missions[region].targets[index][0]) && score===100'),'correct guess '+name);
+   assert(d.querySelector('[data-star="'+name+'"]'),'revealed '+name);
+   run('guessAt(...points[missions[region].targets[index][0]])');assert(run('score===100'),'duplicate score '+name);
+ }
+ results.push('PASS: representative magnitude 5 stars selectable, hidden, view retained when selected, accurate projection, solvable, no duplicate points');
+ run('region=0;reset();selectTarget(2);hinted=true;mistakes=2;selectTarget(3);selectTarget(2)');assert(run('hinted&&mistakes===2'),'saved attempt');
+ for(let region=0;region<3;region++){
+  run('region='+region+';reset()');for(let i=0;i<5;i++)run('selectTarget('+i+');guessAt(...points[missions[region].targets[index][0]])');
+  assert(run('score===500&&found.length===5'),'original expedition '+region);assert(d.getElementById('replay').hidden,'more catalog targets remain');
+ }
+ results.push('PASS: original expeditions, completion, saved hints and mistakes');
+ run('region=3;reset()');d.getElementById('mode').value='expert';run('reset();guessAt(...points[missions[region].targets[index][0]])');assert(run('score===200'),'expert score');assert(d.getElementById('hint').hidden,'expert hint');
+ results.push('PASS: expert mode');
+ d.getElementById('mode').value='guided';run('region=0;reset();selectTarget(2);guessAt(...points.Betelgeuse);view={x:250,y:100,w:400,h:280};applyView();hinted=true;mistakes=2');
+ const before=run('JSON.stringify({view,region,score,found,transform})');search('Bellatrix');
+ assert(run('JSON.stringify({view,region,score,found,transform})')===before,'switching target preserves chart, scale, view, score and found');
+ search('Betelgeuse');assert(run('hinted&&mistakes===2'),'attempt persists after search');
+ search('Canopus');assert(run('region===0&&score===100&&found.includes("Betelgeuse")'),'distant target preserves reference and progress');
+ run('changeChart(3);changeChart(0)');assert(run('score===100&&found.includes("Betelgeuse")&&view.w===400'),'manual chart changes preserve progress and saved view');
+ search('Rigel');run('guessAt(...points.Rigel);selectTarget(missions[0].targets.findIndex(t=>t[0]==="Bellatrix"));guessAt(...points.Bellatrix)');
+ assert(d.querySelectorAll('[data-guide]').length>2,'found stars extend guides');
+ const on=d.querySelectorAll('[data-grid]').length;d.getElementById('lines').click();assert(on>0&&!d.querySelector('[data-grid]')&&!d.querySelector('[data-guide]'),'guide toggle off');d.getElementById('lines').click();assert(d.querySelector('[data-guide]'),'guide toggle on');
+ assert(d.querySelector('[data-scale="10"]'),'angular ruler');
+ const marker=d.querySelector('[data-marker="Betelgeuse"]'),matrix=d.getElementById('sky').getScreenCTM(),radius=Number(marker.getAttribute('r'))*matrix.a;
+ run('zoomAt(.5)');const zoomed=d.querySelector('[data-marker="Betelgeuse"]'),zoomMatrix=d.getElementById('sky').getScreenCTM();assert(Math.abs(Number(zoomed.getAttribute('r'))*zoomMatrix.a-radius)<.01,'marker screen size stays fixed when zoomed');
+ assert(run('Math.hypot(points.Betelgeuse[0]-points.Rigel[0],points.Betelgeuse[1]-points.Rigel[1])>190'),'Orion angular spacing not compressed');
+ assert(run('missions.every(m=>m.targets.length===missions[0].targets.length && missions[0].targets.every(t=>m.targets.some(other=>other[0]===t[0])))'),'same expedition targets across reference charts');
+ results.push('PASS: stable selection and chart switching, progress, found-star guides, grid toggle, degree ruler, constant marker size, Orion spacing');
+ assert(run('messierObjects.length===110&&messierObjects.every((o,i)=>o.number===i+1)'),'complete M1?M110');
+ assert(run('new Set([...brightStars,...messierObjects].map(o=>o.name)).size===brightStars.length+110'),'unique catalog keys');
+ assert(run('[...brightStars,...messierObjects].every(o=>o.ra>=0&&o.ra<24&&o.dec>=-90&&o.dec<=90&&missions[0].targets.some(t=>t[0]===o.name))'),'coordinate bounds and target coverage');
+ assert(run('brightStars.every(s=>separation(unproject(...chartPoint(s)),s)<1e-4)'),'all 1637 star projection round trips');
+ for(const [query,name] of [['M31','M31'],['M 31','M31'],['Messier 31','M31'],['M031','M31'],['Andromeda Galaxy','M31'],['NGC 224','M31'],['Orion Nebula','M42'],['Pleiades','M45'],['Spindle Galaxy','M102']]){search(query);assert(d.getElementById('target').textContent===name,'Messier alias '+query);assert(d.getElementById('target-library').value==='messier','auto library '+query);}
+ assert(run('Math.abs(stars.M42.ra*15-83.85)<.01&&Math.abs(stars.M42.dec+5.45)<.01'),'M42 coordinate units');
+ d.getElementById('mode').value='guided';run('region=0;reset();showLines=false;update()');
+ for(const name of run('messierObjects.map(o=>o.name)')){
+  search(name);assert(!d.querySelector('[data-star="'+name+'"]'),'Messier hidden '+name);
+  const state=run('JSON.stringify({view,region,score,found})');run('chooseCatalogStar("Sirius")');search(name);assert(run('JSON.stringify({view,region,score,found})')===state,'selection stable '+name);
+  assert(run('separation(unproject(...points[missions[region].targets[index][0]]),stars[missions[region].targets[index][0]])<1e-4'),'Messier projection '+name);
+  run('const p=points[missions[region].targets[index][0]];view={x:p[0]-500,y:p[1]-350,w:1000,h:700};applyView();guessAt(...p)');
+  assert(run('found.includes(missions[region].targets[index][0])'),'Messier scoring '+name);assert(d.querySelector('[data-star="'+name+'"][data-kind="messier"] path'),'Messier diamond '+name);
+ }
+ assert(run('score===11000&&found.length===110'),'Messier cumulative score');assert(d.getElementById('next').hidden,'completed Messier library has no next target');
+ const stable=run('JSON.stringify({view,region,score,found})');d.getElementById('target-library').value='star';d.getElementById('target-library').dispatchEvent(new w.Event('change'));d.getElementById('target-library').value='messier';d.getElementById('target-library').dispatchEvent(new w.Event('change'));assert(run('JSON.stringify({view,region,score,found})')===stable,'library toggles preserve progress and view');assert(d.getElementById('target').textContent==='M110','remember selected Messier');
+ d.getElementById('target-library').value='star';d.getElementById('target-library').dispatchEvent(new w.Event('change'));assert(d.querySelectorAll('#targets button').length===30,'paged star picker');assert(d.querySelectorAll('#star-options option').length<=40,'bounded suggestions');d.getElementById('targets-next').click();assert(d.getElementById('target-page').textContent.includes('31–60'),'next target page');d.getElementById('targets-prev').click();assert(d.getElementById('target-page').textContent.includes('1–30'),'previous target page');
+ d.getElementById('star-query').value='alpha orion';d.getElementById('star-query').dispatchEvent(new w.Event('input'));assert(d.querySelectorAll('#targets button').length===1&&d.querySelector('#targets button').textContent.includes('Betelgeuse'),'live library filter');
+ run('reset();chooseCatalogStar("M31");guessAt(...points.M31)');d.getElementById('next').click();assert(d.getElementById('target').textContent==='M1'&&d.getElementById('target-library').value==='messier','next stays in Messier library');assert(d.querySelector('#targets .selected').textContent.includes('M1'),'next target visible in picker');
+ results.push('PASS: all 1637 star coordinates and target coverage, all 110 Messier objects hidden and solvable, names and IDs, diamond markers, cumulative scoring, library selection, pagination and live filtering');
+ document.getElementById('results').textContent=results.join('\n');
+
+}catch(e){document.getElementById('results').textContent='FAIL: '+e.stack;}};
+</script></body></html>
