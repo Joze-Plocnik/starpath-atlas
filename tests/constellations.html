@@ -1,0 +1,99 @@
+<!doctype html><html><head><meta charset="utf-8"><style>iframe{width:1200px;height:1100px;border:0}</style></head><body><pre id="results">RUNNING</pre><iframe id="app" src="../constellations.html"></iframe><script>
+const frame=document.getElementById('app');
+frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval(code),assert=(value,message)=>{if(!value)throw Error(message)},results=[];try{
+ const svg=d.getElementById('constellation-sky');
+ function submit(name){d.getElementById('answer').value=name;d.getElementById('answer-form').dispatchEvent(new w.Event('submit',{cancelable:true}));}
+ function key(key){svg.dispatchEvent(new w.KeyboardEvent('keydown',{key,cancelable:true}));}
+ function anchor(id){return run('ConstellationGame.chartPoint({ra:SkyGeometry.atlas.get(ConstellationGame.state.current).anchors['+JSON.stringify(id)+'][0],dec:SkyGeometry.atlas.get(ConstellationGame.state.current).anchors['+JSON.stringify(id)+'][1]})');}
+ function score(){return Number(d.getElementById('score').textContent);}
+ assert(run('constellationAtlas.constellations.length===88&&constellationAtlas.constellations.reduce((n,c)=>n+c.rings.length,0)===89'),'88 constellations / 89 regions');
+ assert(run('constellationAtlas.constellations.every(c=>c.neighbors.every(id=>SkyGeometry.atlas.get(id).neighbors.includes(c.id)))'),'symmetric adjacency');
+ assert(run('SkyGeometry.atlas.get("Ser").rings.length===2'),'Serpens combined as one constellation with two regions');
+ assert(run('SkyGeometry.atlas.get("Cru").neighbors.join(",")==="Cen,Mus"'),'Crux known neighbors');
+ assert(run('SkyGeometry.atlas.get("Ori").neighbors.join(",")==="Eri,Gem,Lep,Mon,Tau"'),'Orion known neighbors');
+ assert(run('SkyGeometry.atlas.get("UMi").neighbors.join(",")==="Cam,Cep,Dra"'),'polar known neighbors');
+ assert(run('constellationAtlas.constellations.every(c=>Object.entries(c.anchors).every(([id,p])=>SkyGeometry.constellationAt({ra:p[0],dec:p[1]})===id))'),'every neighbor anchor lies inside its named region');
+ assert(run('constellationAtlas.constellations.every(c=>SkyGeometry.constellationAt({ra:c.label[0],dec:c.label[1]})===c.id)'),'all label positions interior');
+ assert(run('SkyGeometry.constellationAt(SkyGeometry.toJ2000({ra:0,dec:90}))==="UMi"&&SkyGeometry.constellationAt(SkyGeometry.toJ2000({ra:12,dec:-90}))==="Oct"'),'celestial poles');
+ assert(run('SkyGeometry.contains1875("Peg",{ra:23.9,dec:15})&&SkyGeometry.contains1875("Peg",{ra:.05,dec:15})'),'Pegasus spans RA zero');
+ assert(run('!SkyGeometry.contains1875("UMi",{ra:13.3656,dec:83.25})&&SkyGeometry.contains1875("Cam",{ra:13.3656,dec:83.25})'),'polar seam parity excludes Camelopardalis from Ursa Minor');
+ assert(run('brightStars.every(star=>SkyGeometry.constellationAt(star)&&SkyGeometry.separation(SkyGeometry.toJ2000(SkyGeometry.toB1875(star)),star)<1e-8)'),'all star positions classified and precession round trips');
+ assert(run('["Sirius","Betelgeuse","Regulus","Markab","Polaris"].every((name,i)=>SkyGeometry.constellationAt(brightStars.find(s=>s.name===name))===["CMa","Ori","Leo","Peg","UMi"][i])'),'independent named-star membership');
+ assert(run('(()=>{for(let ra=.13;ra<24;ra+=1.25)for(let dec=-89.7;dec<90;dec+=5){const p={ra,dec};if(constellationAtlas.constellations.filter(c=>SkyGeometry.contains1875(c.id,p)).length!==1)return false;}return true;})()'),'unique global coverage');
+ results.push('PASS: all regions, symmetric real neighbors, Serpens, known stars/neighbors, valid interior anchors, poles, RA wrap, polar seam and precession');
+ run('ConstellationGame.newGame();ConstellationGame.startRound("Ori")');
+ assert(run('ConstellationGame.state.limit===4'),'default magnitude 4.00');
+ assert(!svg.querySelector('polyline,path,text'),'initial map has no lines, borders or names');
+ assert(svg.querySelectorAll('[data-game-star]').length===run('ConstellationGame.visibleStars().length'),'all qualifying stars drawn');
+ assert([...svg.querySelectorAll('[data-magnitude]')].every(node=>Number(node.dataset.magnitude)<=4),'no fainter stars shown');
+ assert(!svg.getAttribute('aria-label').includes('Orion')&&!d.getElementById('map-title').textContent.includes('ORION'),'unknown answer not exposed in displayed map title or accessible map label');
+ const originalPoints=[...svg.querySelectorAll('[data-game-star]')].map(node=>[node.getAttribute('cx'),node.getAttribute('cy')]),originalView=run('JSON.stringify(ConstellationGame.state.view)');
+ submit('The Hunter');assert(score()===0&&run('ConstellationGame.state.phase==="identify"'),'English name rejected');submit('Ori');assert(score()===0,'abbreviation rejected');submit('Leo');assert(score()===0&&!svg.querySelector('[data-boundary]'),'wrong Latin name does not reveal border');
+ submit('  oRiOn  ');assert(score()===1&&run('ConstellationGame.state.phase==="neighbors"'),'case and whitespace accepted');
+ assert(svg.querySelector('[data-boundary="Ori"]')&&new Set([...svg.querySelectorAll('[data-boundary]')].map(node=>node.dataset.boundary)).size===1,'only original border revealed');
+ assert(JSON.stringify([...svg.querySelectorAll('[data-game-star]')].map(node=>[node.getAttribute('cx'),node.getAttribute('cy')]))===JSON.stringify(originalPoints)&&run('JSON.stringify(ConstellationGame.state.view)')===originalView,'naming preserves star coordinates and current view');
+ submit('Orion');assert(score()===1,'original answer cannot score twice');submit('Crux');assert(score()===1&&run('ConstellationGame.state.pending===null'),'non-neighbor rejected');
+ submit('Taurus');assert(score()===1&&run('ConstellationGame.state.pending==="Tau"')&&!svg.querySelector('[data-boundary="Tau"]'),'neighbor name alone neither scores nor reveals border');
+ const wrongPoint=anchor('Gem');run('ConstellationGame.placeNeighbor('+wrongPoint.x+','+wrongPoint.y+')');assert(score()===1&&run('ConstellationGame.state.pending==="Tau"'),'click in another neighbor rejected');
+ const originalInterior=run('ConstellationGame.chartPoint({ra:SkyGeometry.atlas.get("Ori").label[0],dec:SkyGeometry.atlas.get("Ori").label[1]})');run('ConstellationGame.placeNeighbor('+originalInterior.x+','+originalInterior.y+')');assert(score()===1,'click inside original region rejected');
+ const targetPoint=anchor('Tau');run('ConstellationGame.placeNeighbor('+targetPoint.x+','+targetPoint.y+')');assert(score()===2&&svg.querySelector('[data-boundary="Tau"]'),'correct name plus inside placement scores and reveals neighbor');
+ submit('Taurus');assert(score()===2&&run('ConstellationGame.state.pending===null'),'duplicate neighbor rejected without points');
+ results.push('PASS: star-only unknown phase, Latin name validation, exact map retention, hidden unknown neighbors, name-plus-region validation and no duplicate scores');
+ submit('Gemini');const beforeZoom=run('JSON.stringify({score:ConstellationGame.state.correctNames+ConstellationGame.state.correctNeighbors,pending:ConstellationGame.state.pending})');
+ const radius=Number(svg.querySelector('[data-game-star]').getAttribute('r'))*svg.getScreenCTM().a;d.getElementById('zoom-in').click();
+ assert(Math.abs(Number(svg.querySelector('[data-game-star]').getAttribute('r'))*svg.getScreenCTM().a-radius)<1e-6,'star screen size stays fixed with zoom');
+ assert(run('JSON.stringify({score:ConstellationGame.state.correctNames+ConstellationGame.state.correctNeighbors,pending:ConstellationGame.state.pending})')===beforeZoom,'zoom keeps pending guess and score');
+ key('ArrowRight');assert(svg.querySelector('[data-aim]'),'keyboard crosshair');key('Escape');assert(run('ConstellationGame.state.pending===null'),'Escape cancels pending placement');
+ submit('Gemini');const gem=anchor('Gem');run('ConstellationGame.state.cursor=['+gem.x+','+gem.y+'];ConstellationGame.state.aim=true');key('Enter');assert(score()===3,'keyboard Enter places named neighbor');
+ d.getElementById('reset-view').click();assert(run('JSON.stringify(ConstellationGame.state.view)')===originalView,'reset returns to same original chart view');
+ // Synthetic pointer IDs need capture stubs; coordinates still use the native SVG screen transform.
+ const originalCapture=svg.setPointerCapture,originalRelease=svg.releasePointerCapture,originalHas=svg.hasPointerCapture;
+ svg.setPointerCapture=()=>{};svg.releasePointerCapture=()=>{};svg.hasPointerCapture=()=>false;
+ function screen(p){const transformed=svg.createSVGPoint();transformed.x=p.x;transformed.y=p.y;return transformed.matrixTransform(svg.getScreenCTM());}
+ function pointer(type,p,id=42){svg.dispatchEvent(new w.PointerEvent(type,{pointerId:id,pointerType:'touch',button:0,clientX:p.x,clientY:p.y,bubbles:true}));}
+ submit('Monoceros');const monScreen=screen(anchor('Mon')),beforePan=run('JSON.stringify(ConstellationGame.state.view)');
+ pointer('pointerdown',monScreen);pointer('pointermove',{x:monScreen.x+30,y:monScreen.y+10});pointer('pointerup',{x:monScreen.x+30,y:monScreen.y+10});
+ assert(score()===3&&run('JSON.stringify(ConstellationGame.state.view)')!==beforePan&&run('ConstellationGame.state.pending==="Mon"'),'touch drag pans without scoring or losing target');
+ const newMonScreen=screen(anchor('Mon'));pointer('pointerdown',newMonScreen);pointer('pointerup',newMonScreen);assert(score()===4,'touch tap scores only a correct named region');
+ svg.setPointerCapture=originalCapture;svg.releasePointerCapture=originalRelease;svg.hasPointerCapture=originalHas;
+ for(const id of ['Eri','Lep']){submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));const p=anchor(id);run('ConstellationGame.placeNeighbor('+p.x+','+p.y+')');}
+ assert(score()===6&&run('ConstellationGame.state.phase==="complete"&&ConstellationGame.state.roundsCompleted===1'),'all five Orion neighbors complete round');
+ document.getElementById('results').textContent='RUNNING: checking automatic next round';
+ await new Promise(resolve=>setTimeout(resolve,2400));
+ assert(run('ConstellationGame.state.current!=="Ori"&&ConstellationGame.state.phase==="identify"')&&score()===6&&!svg.querySelector('polyline,path,text'),'automatic next round starts star-only and keeps score');
+ results.push('PASS: zoom scale, map reset, keyboard/cancellation, touch pan versus tap, complete neighbor set and automatic score-preserving advance');
+ run('ConstellationGame.newGame()');assert(score()===0&&run('ConstellationGame.state.roundsCompleted===0'),'new game resets counts');
+ const eligible=run('ConstellationGame.eligible()');let expectedScore=0,starTotal=0;
+ for(const id of eligible){
+  run('ConstellationGame.startRound('+JSON.stringify(id)+')');
+  assert(!svg.querySelector('polyline,path,text'),'new pattern contains only stars '+id);
+  starTotal+=svg.querySelectorAll('[data-game-star]').length;
+  const view=run('ConstellationGame.state.view');
+  assert([...svg.querySelectorAll('[data-game-star]')].every(node=>Number(node.getAttribute('cx'))>=view.x&&Number(node.getAttribute('cx'))<=view.x+view.w&&Number(node.getAttribute('cy'))>=view.y&&Number(node.getAttribute('cy'))<=view.y+view.h),'all stars in default field '+id);
+  submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));expectedScore++;
+  for(const neighbor of run('SkyGeometry.atlas.get('+JSON.stringify(id)+').neighbors')){
+   const p=anchor(neighbor);assert(p.x>=view.x&&p.x<=view.x+view.w&&p.y>=view.y&&p.y<=view.y+view.h,'neighbor has a place in default field '+id+' / '+neighbor);
+   submit(run('SkyGeometry.atlas.get('+JSON.stringify(neighbor)+').name'));run('ConstellationGame.placeNeighbor('+p.x+','+p.y+')');expectedScore++;
+   assert(score()===expectedScore,'all-region score '+id+' / '+neighbor);
+  }
+  assert(run('ConstellationGame.state.phase==="complete"'),'every playable round completable '+id);
+ }
+ assert(starTotal===523&&starTotal===run('brightStars.filter(s=>s.mag<=4).length'),'all and only 523 catalog stars at inclusive magnitude 4');
+ assert(run('ConstellationGame.state.roundsCompleted')===eligible.length,'all eligible rounds counted');
+ run('ConstellationGame.startRound("Boo")');const beforeAccent=score();submit('Bootes');assert(score()===beforeAccent+1,'unaccented Latin name accepted');
+ run('ConstellationGame.startRound("And")');const beforeLimit=score();assert(run('ConstellationGame.setMagnitude(3.99)'), 'adjust magnitude');
+ assert(run('ConstellationGame.visibleStars().every(s=>s.mag<=3.99)'),'lower threshold applied');run('ConstellationGame.setMagnitude(5)');assert(run('ConstellationGame.visibleStars().some(s=>s.mag>4)'),'higher threshold reveals additional stars');
+ assert(score()===beforeLimit&&!svg.querySelector('[data-boundary]'),'threshold preserves score and hidden-answer phase');
+ run('ConstellationGame.setMagnitude(4)');const exactOwner=run('SkyGeometry.constellationAt(brightStars.find(s=>s.mag===4))');run('ConstellationGame.startRound('+JSON.stringify(exactOwner)+')');assert([...svg.querySelectorAll('[data-magnitude]')].some(node=>Number(node.dataset.magnitude)===4),'inclusive 4.00 boundary drawn');
+ assert(!run('ConstellationGame.setMagnitude(6)')&&run('ConstellationGame.state.limit===4'),'unavailable magnitude rejected');
+ run('ConstellationGame.startRound("Ori");ConstellationGame.setMagnitude(0)');assert(run('ConstellationGame.state.phase==="identify"&&ConstellationGame.visibleStars().length>0'),'empty star pattern omitted after lowering cutoff');
+ run('ConstellationGame.setMagnitude(4);ConstellationGame.newGame()');const seen=new Set();
+ for(let i=0;i<eligible.length;i++){const current=run('ConstellationGame.state.current');assert(!seen.has(current),'no repeat before a full set');seen.add(current);d.getElementById('reveal-name').click();assert(score()===0,'reveal earns no point');d.getElementById('skip-round').click();assert(score()===0,'skip earns no point');}
+ assert(seen.size===eligible.length,'shuffle covers every eligible constellation');
+ frame.style.width='320px';frame.style.height='1200px';const width=d.documentElement.clientWidth;
+ assert(d.documentElement.scrollWidth<=width,'no horizontal mobile page overflow');
+ for(const id of ['answer','check-answer','magnitude','new-game']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile control visible '+id);}
+ results.push('PASS: every magnitude-4 pattern and neighbor playable, inclusive cutoff, adjustable limit, accents, no empty patterns, nonrepeating rounds, reveal/skip scoring and mobile layout');
+ document.getElementById('results').textContent=results.join('\n');
+}catch(error){document.getElementById('results').textContent='FAIL: '+error.stack;}};
+</script></body></html>
