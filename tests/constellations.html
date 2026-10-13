@@ -34,9 +34,13 @@ frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval
  assert(JSON.stringify([...svg.querySelectorAll('[data-game-star]')].map(node=>[node.getAttribute('cx'),node.getAttribute('cy')]))===JSON.stringify(originalPoints)&&run('JSON.stringify(ConstellationGame.state.view)')===originalView,'naming preserves star coordinates and current view');
  submit('Orion');assert(score()===1,'original answer cannot score twice');submit('Crux');assert(score()===1&&run('ConstellationGame.state.pending===null'),'non-neighbor rejected');
  submit('Taurus');assert(score()===1&&run('ConstellationGame.state.pending==="Tau"')&&!svg.querySelector('[data-boundary="Tau"]'),'neighbor name alone neither scores nor reveals border');
+ assert(!svg.querySelector('[data-game-star][data-constellation="Tau"]'),'neighbor stars hidden before placement');
  const wrongPoint=anchor('Gem');run('ConstellationGame.placeNeighbor('+wrongPoint.x+','+wrongPoint.y+')');assert(score()===1&&run('ConstellationGame.state.pending==="Tau"'),'click in another neighbor rejected');
  const originalInterior=run('ConstellationGame.chartPoint({ra:SkyGeometry.atlas.get("Ori").label[0],dec:SkyGeometry.atlas.get("Ori").label[1]})');run('ConstellationGame.placeNeighbor('+originalInterior.x+','+originalInterior.y+')');assert(score()===1,'click inside original region rejected');
  const targetPoint=anchor('Tau');run('ConstellationGame.placeNeighbor('+targetPoint.x+','+targetPoint.y+')');assert(score()===2&&svg.querySelector('[data-boundary="Tau"]'),'correct name plus inside placement scores and reveals neighbor');
+ assert(svg.querySelectorAll('[data-game-star][data-constellation="Tau"]').length===run('brightStars.filter(s=>s.mag<=4&&SkyGeometry.constellationAt(s)==="Tau").length'),'all qualifying neighbor stars revealed after correct placement');
+ assert(!svg.querySelector('[data-game-star][data-constellation="Gem"]'),'unfound neighboring stars remain hidden');
+ assert([...svg.querySelectorAll('[data-game-star][data-constellation="Ori"]')].every((node,i)=>node.getAttribute('cx')===originalPoints[i][0]&&node.getAttribute('cy')===originalPoints[i][1]),'neighbor discovery preserves original star positions');
  submit('Taurus');assert(score()===2&&run('ConstellationGame.state.pending===null'),'duplicate neighbor rejected without points');
  results.push('PASS: star-only unknown phase, Latin name validation, exact map retention, hidden unknown neighbors, name-plus-region validation and no duplicate scores');
  submit('Gemini');const beforeZoom=run('JSON.stringify({score:ConstellationGame.state.correctNames+ConstellationGame.state.correctNeighbors,pending:ConstellationGame.state.pending})');
@@ -92,7 +96,7 @@ frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval
  assert(seen.size===eligible.length,'shuffle covers every eligible constellation');
  frame.style.width='320px';frame.style.height='1200px';const width=d.documentElement.clientWidth;
  assert(d.documentElement.scrollWidth<=width,'no horizontal mobile page overflow');
- for(const id of ['answer','check-answer','magnitude','new-game']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile control visible '+id);}
+ for(const id of ['answer','check-answer','magnitude','new-game','game-mode']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile control visible '+id);}
  results.push('PASS: every magnitude-4 pattern and neighbor playable, inclusive cutoff, adjustable limit, accents, no empty patterns, nonrepeating rounds, reveal/skip scoring and mobile layout');
  document.getElementById('results').textContent=results.join('\n');
 }catch(error){document.getElementById('results').textContent='FAIL: '+error.stack;}};

@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8"><style>iframe{width:1200px;height:1100px;border:0}</style></head><body><pre id="results">RUNNING</pre><iframe id="app" src="../constellations.html"></iframe><script>
+const frame=document.getElementById('app');
+frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval(code),assert=(value,message)=>{if(!value)throw Error(message)},results=[];try{
+ const svg=d.getElementById('constellation-sky');
+ const score=()=>Number(d.getElementById('score').textContent);
+ function mode(value){d.getElementById('game-mode').value=value;d.getElementById('game-mode').dispatchEvent(new w.Event('change'));}
+ function submit(name){d.getElementById('answer').value=name;d.getElementById('answer-form').dispatchEvent(new w.Event('submit',{cancelable:true}));}
+ function focus(id){d.getElementById('view-around').value=id;d.getElementById('view-around').dispatchEvent(new w.Event('change'));}
+ function anchor(source,id){return run('ConstellationGame.chartPoint({ra:SkyGeometry.atlas.get('+JSON.stringify(source)+').anchors['+JSON.stringify(id)+'][0],dec:SkyGeometry.atlas.get('+JSON.stringify(source)+').anchors['+JSON.stringify(id)+'][1]})');}
+ function claim(source,id){
+  focus(source);assert(run('ConstellationGame.state.focus')===source,'camera focuses a claimed parent '+source);
+  submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));assert(run('ConstellationGame.state.pending')===id,'frontier name accepted '+id);
+  const p=anchor(source,id);assert(p&&Number.isFinite(p.x)&&Number.isFinite(p.y),'reachable projection '+id);
+  const view=run('ConstellationGame.state.view');assert(p.x>=view.x&&p.x<=view.x+view.w&&p.y>=view.y&&p.y<=view.y+view.h,'valid point in focused field '+id);
+  run('ConstellationGame.state.cursor=['+p.x+','+p.y+'];ConstellationGame.state.aim=true');svg.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',cancelable:true}));
+  assert(run('ConstellationGame.state.claimed.has('+JSON.stringify(id)+')'),'region claimed '+id);
+ }
+ assert(d.getElementById('game-mode').value==='classic','Classic is the default');
+ mode('conquer');run('ConstellationGame.startRound("Ori")');
+ assert(run('ConstellationGame.state.mode==="conquer"&&ConstellationGame.state.phase==="identify"&&ConstellationGame.state.claimed.size===0'),'Conquer starts with one unknown pattern');
+ assert(!svg.querySelector('polyline,path,text')&&d.getElementById('travel-controls').hidden&&d.getElementById('view-around').options.length===0,'no initial borders, names or travel answer leak');
+ assert(d.getElementById('reveal-name').hidden&&d.getElementById('skip-round').hidden,'Conquer claims require correct answers');
+ d.getElementById('reveal-name').click();assert(score()===0&&run('ConstellationGame.state.claimed.size===0'),'hidden reveal cannot grant free claim');
+ submit('Orion');assert(score()===1&&run('ConstellationGame.state.claimed.size===1&&ConstellationGame.state.claimed.has("Ori")'),'correct seed name claims the first region');
+ assert(run('ConstellationGame.frontier().sort().join(",")==="Eri,Gem,Lep,Mon,Tau"'),'initial frontier is exactly seed neighbors');
+ assert(d.getElementById('view-around').options.length===1&&!d.getElementById('travel-controls').hidden,'only claimed regions become travel destinations');
+ submit('Crux');assert(run('ConstellationGame.state.pending===null')&&score()===1,'distant constellation not claimable');
+ submit('Taurus');assert(score()===1&&run('ConstellationGame.state.claimed.size===1')&&!svg.querySelector('[data-game-star][data-constellation="Tau"]'),'naming alone does not reveal stars or claim region');
+ const wrong=anchor('Ori','Gem');run('ConstellationGame.placeNeighbor('+wrong.x+','+wrong.y+')');assert(score()===1&&run('ConstellationGame.state.pending==="Tau"'),'wrong neighboring point rejected');
+ const originalView=run('JSON.stringify({center:ConstellationGame.state.center,view:ConstellationGame.state.view})');const tau=anchor('Ori','Tau');run('ConstellationGame.placeNeighbor('+tau.x+','+tau.y+')');
+ assert(score()===2&&run('ConstellationGame.state.claimed.size===2')&&svg.querySelector('[data-game-star][data-constellation="Tau"]'),'claim reveals stars and border');
+ assert(run('JSON.stringify({center:ConstellationGame.state.center,view:ConstellationGame.state.view})')===originalView,'claim does not automatically recenter map');
+ assert(run('ConstellationGame.frontier().includes("Aur")&&!SkyGeometry.atlas.get("Ori").neighbors.includes("Aur")'),'new frontier expands beyond original neighbors');
+ submit('Auriga');focus('Tau');assert(run('ConstellationGame.state.pending==="Aur"&&ConstellationGame.state.claimed.size===2')&&score()===2,'manual travel preserves pending target and all claims');
+ claim('Tau','Aur');assert(score()===3,'neighbor of a newly claimed region can be conquered');
+ assert(run('!ConstellationGame.focusOn("Cru")'),'unclaimed destination rejected');
+ submit('Taurus');assert(run('ConstellationGame.state.pending===null')&&score()===3,'duplicate claim does not score');
+ results.push('PASS: mode selection, hidden seed, strict first claim, expanding frontier, name-plus-placement checks, revealed stars, stable view and travel to claimed regions');
+ for(const id of ['Eri','Gem','Lep','Mon'])claim('Ori',id);
+ assert(run('SkyGeometry.atlas.get("Ori").neighbors.every(id=>ConstellationGame.state.claimed.has(id))&&ConstellationGame.state.phase==="neighbors"'),'all seed neighbors do not end Conquer');
+ const existing=run('JSON.stringify([...ConstellationGame.state.claimed.keys()])'),currentScore=score();
+ document.getElementById('results').textContent='RUNNING: verifying persistent territory';await new Promise(resolve=>setTimeout(resolve,2400));
+ assert(run('JSON.stringify([...ConstellationGame.state.claimed.keys()])')===existing&&score()===currentScore&&run('ConstellationGame.state.current==="Ori"'),'no automatic new round or forgotten claims');
+ run('ConstellationGame.setMagnitude(0)');assert(run('JSON.stringify([...ConstellationGame.state.claimed.keys()])')===existing&&score()===currentScore,'lower cutoff preserves territory even without visible stars');
+ run('ConstellationGame.setMagnitude(5)');assert(run('ConstellationGame.visibleStars().some(s=>s.mag>4)'),'new cutoff applies to every claimed region');run('ConstellationGame.setMagnitude(4)');
+ let before=score();
+ while(run('ConstellationGame.state.claimed.size')<88){
+  const frontier=run('ConstellationGame.frontier()');assert(frontier.length>0,'all 88 regions connected and reachable');const id=frontier[0];
+  const source=run('[...ConstellationGame.state.claimed.keys()].find(claimed=>SkyGeometry.atlas.get(claimed).neighbors.includes('+JSON.stringify(id)+'))');
+  claim(source,id);assert(score()===++before,'one point per new successful claim '+id);
+ }
+ assert(score()===88&&run('ConstellationGame.state.correctNames===1&&ConstellationGame.state.correctNeighbors===87&&ConstellationGame.state.phase==="complete"'),'all-88 victory and exact score');
+ assert(run('ConstellationGame.state.claimed.has("Men")&&ConstellationGame.visibleStars().length===523'),'starless regions remain claimable and all magnitude-4 stars retained');
+ assert(d.getElementById('neighbor-progress').textContent==='88 / 88'&&d.getElementById('completed-count').textContent==='0'&&d.getElementById('answer-form').hidden&&d.getElementById('next-round').hidden,'finished game shows all claimed, zero remaining and no next round');
+ assert(d.getElementById('view-around').options.length===88,'all claims are available for travel');
+ for(const id of ['UMi','Oct','Ser','Peg','Ori']){
+  focus(id);assert(score()===88&&run('ConstellationGame.state.claimed.size===88'),'polar/RA-wrap travel retains victory '+id);
+  assert(svg.getAttribute('aria-label').includes(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name')),'accessible map label describes current view '+id);
+  const expected=run('brightStars.filter(s=>s.mag<=4&&SkyGeometry.constellationAt(s)==='+JSON.stringify(id)+').length');
+  assert(svg.querySelectorAll('[data-game-star][data-constellation="'+id+'"]').length===expected&&svg.querySelector('[data-boundary="'+id+'"]'),'focused claimed region retains all stars and borders '+id);
+ }
+ document.getElementById('results').textContent='RUNNING: verifying completed game stays finished';await new Promise(resolve=>setTimeout(resolve,2400));
+ assert(score()===88&&run('ConstellationGame.state.phase==="complete"&&ConstellationGame.state.claimed.size===88'),'victory stays on screen');
+ results.push('PASS: persistent frontier, threshold changes, every constellation reachable including starless and polar regions, exact 88-claim victory, retained stars and finished-game travel');
+ frame.style.width='320px';frame.style.height='1200px';const width=d.documentElement.clientWidth;
+ assert(d.documentElement.scrollWidth<=width,'Conquer has no horizontal mobile overflow');
+ for(const id of ['game-mode','magnitude','new-game','view-around']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile Conquer control fits '+id);}
+ d.getElementById('new-game').click();assert(score()===0&&run('ConstellationGame.state.mode==="conquer"&&ConstellationGame.state.claimed.size===0&&ConstellationGame.state.phase==="identify"')&&!svg.querySelector('polyline,path,text'),'new Conquer clears territory and scores');
+ mode('classic');run('ConstellationGame.startRound("Ori")');submit('Orion');
+ for(const id of run('SkyGeometry.atlas.get("Ori").neighbors')){submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));const p=anchor('Ori',id);run('ConstellationGame.placeNeighbor('+p.x+','+p.y+')');}
+ assert(run('ConstellationGame.state.phase==="complete"'),'Classic still completes its local neighbor round');
+ mode('conquer');const seed=run('ConstellationGame.state.current');document.getElementById('results').textContent='RUNNING: checking mode-switch timer cancellation';await new Promise(resolve=>setTimeout(resolve,2400));
+ assert(score()===0&&run('ConstellationGame.state.current')===seed&&run('ConstellationGame.state.claimed.size===0&&ConstellationGame.state.phase==="identify"'),'switching modes cancels Classic automatic advance and resets progress');
+ results.push('PASS: narrow-screen mode/travel controls, new-game reset, Classic completion and cancellation of old timers on mode change');
+ document.getElementById('results').textContent=results.join('\n');
+}catch(error){document.getElementById('results').textContent='FAIL: '+error.stack;}};
+</script></body></html>
