@@ -1,5 +1,6 @@
 const ConstellationGame = (() => {
  const DEFAULT_MAGNITUDE_LIMIT = 4.00;
+ const DEFAULT_STARTING_MAGNITUDE = 4.00;
  const $ = id => document.getElementById(id), svg = $('constellation-sky'), NS = 'http://www.w3.org/2000/svg';
  const regions = SkyGeometry.atlas;
  const normalizeName = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
@@ -9,7 +10,8 @@ const ConstellationGame = (() => {
   const owner = SkyGeometry.constellationAt(star);
   if (owner) groupedStars.get(owner).push(star);
  }
- const state = {mode:'classic',current:null,phase:'identify',limit:DEFAULT_MAGNITUDE_LIMIT,foundNeighbors:new Map(),claimed:new Map(),focus:null,pending:null,
+ const brightestMagnitude = new Map([...groupedStars].map(([id,stars])=>[id,Math.min(...stars.map(star=>star.mag))]));
+ const state = {mode:'classic',current:null,phase:'identify',limit:DEFAULT_MAGNITUDE_LIMIT,startingLimit:DEFAULT_STARTING_MAGNITUDE,foundNeighbors:new Map(),claimed:new Map(),focus:null,pending:null,
   correctNames:0,correctNeighbors:0,roundsCompleted:0,roundNumber:0,visited:new Set(),
   center:null,view:null,defaultView:null,cursor:[500,350],aim:false};
  let drag = null, nextTimer = null;
@@ -23,7 +25,8 @@ const ConstellationGame = (() => {
   const available=new Set();for(const id of state.claimed.keys())for(const neighbor of regions.get(id).neighbors)if(!state.claimed.has(neighbor))available.add(neighbor);
   return [...available];
  }
- const eligible = () => [...regions.keys()].filter(id => groupedStars.get(id).some(star => star.mag <= state.limit));
+ const canStart = (id,displayLimit=state.limit,startingLimit=state.startingLimit) => regions.has(id)&&brightestMagnitude.get(id)<=displayLimit&&brightestMagnitude.get(id)<=startingLimit;
+ const eligible = () => [...regions.keys()].filter(id => canStart(id));
  function element(tag,attributes={},parent=svg) {
   const node=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);parent.appendChild(node);return node;
  }
@@ -42,7 +45,7 @@ const ConstellationGame = (() => {
  function cancelAdvance() {if(nextTimer!==null){clearTimeout(nextTimer);nextTimer=null;}}
  function startRound(id) {
   if(state.mode==='conquer'&&state.claimed.size)return false;
-  if(!regions.has(id)||!groupedStars.get(id).some(star=>star.mag<=state.limit))return false;
+  if(!canStart(id))return false;
   cancelAdvance();state.current=id;state.phase='identify';state.foundNeighbors=new Map();state.pending=null;
   state.focus=id;state.center=point(regions.get(id).center);state.defaultView=fitView(id);state.view={...state.defaultView};
   state.cursor=[state.view.x+state.view.w/2,state.view.y+state.view.h/2];state.aim=false;state.roundNumber++;
@@ -155,6 +158,8 @@ const ConstellationGame = (() => {
   $('round-number').textContent=conquering?state.claimed.size:state.roundNumber;$('completed-count').textContent=conquering?regions.size-state.claimed.size:state.roundsCompleted;
   $('map-title').textContent=identifying?'UNNAMED CONSTELLATION':conquering?'YOUR TERRITORY · '+state.claimed.size+' / '+regions.size:region.name.toUpperCase();
   $('star-count').textContent=visibleStars().length+(identifying?' stars':' revealed stars')+' · mag ≤ '+state.limit.toFixed(2);
+  const matchingCount=eligible().length;
+  $('starting-count').textContent=matchingCount+' starting constellation'+(matchingCount===1?' matches':'s match')+' both limits. Neighbor discoveries stay unrestricted.';
   $('step-name').classList.toggle('active',identifying);$('step-neighbors').classList.toggle('active',!identifying);
   $('step-neighbors').textContent=conquering?'02  Conquer the sky':'02  Find its neighbors';
   $('phase-label').textContent=identifying?'THE STAR PATTERN':complete?(conquering?'CONQUEST COMPLETE':'ROUND COMPLETE'):(conquering?'EXPAND YOUR TERRITORY':'THE BORDERING CONSTELLATIONS');
@@ -180,7 +185,14 @@ const ConstellationGame = (() => {
  function setMagnitude(value) {
   if(!Number.isFinite(value)||value<0||value>5){$('magnitude').value=state.limit.toFixed(2);message('Choose a magnitude limit from 0.00 to 5.00.',true);return false;}
   state.limit=value;$('magnitude').value=value.toFixed(2);
-  if(state.phase==='identify'&&!visibleStars().length){nextRound();message('The previous pattern has no stars at this limit. Here is another constellation.');}
+  if(state.phase==='identify'&&!canStart(state.current)){nextRound();message('The previous pattern has no stars at this limit. Here is another constellation.');}
+  else update();return true;
+ }
+ function setStartingMagnitude(value) {
+  if(!Number.isFinite(value)||value<-2||value>5){$('starting-magnitude').value=state.startingLimit.toFixed(2);message('Choose a starting brightest-star limit from -2.00 to 5.00.',true);return false;}
+  if(![...regions.keys()].some(id=>canStart(id,state.limit,value))){$('starting-magnitude').value=state.startingLimit.toFixed(2);message('No starting constellations match both limits. Raise the brightest-star limit.',true);return false;}
+  state.startingLimit=value;$('starting-magnitude').value=value.toFixed(2);
+  if(state.phase==='identify'&&!canStart(state.current)){nextRound();message('The previous pattern does not meet the brightest-star limit. Here is a matching constellation.');}
   else update();return true;
  }
  function eventPoint(event) {const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;const matrix=svg.getScreenCTM();return matrix?p.matrixTransform(matrix.inverse()):null;}
@@ -203,9 +215,10 @@ const ConstellationGame = (() => {
  $('reveal-name').onclick=()=>revealName(false);$('skip-round').onclick=nextRound;$('next-round').onclick=nextRound;$('new-game').onclick=newGame;
  $('zoom-in').onclick=()=>zoomAt(.8);$('zoom-out').onclick=()=>zoomAt(1.25);$('reset-view').onclick=()=>{state.view={...state.defaultView};state.aim=false;renderMap();};
  $('magnitude').onchange=()=>setMagnitude(Number($('magnitude').value));
+ $('starting-magnitude').onchange=()=>setStartingMagnitude($('starting-magnitude').value.trim()===''?NaN:Number($('starting-magnitude').value));
  $('game-mode').onchange=()=>setMode($('game-mode').value);
  $('view-around').onchange=()=>focusOn($('view-around').value);
  window.addEventListener('resize',renderMap);
- $('game-mode').value=state.mode;$('magnitude').value=DEFAULT_MAGNITUDE_LIMIT.toFixed(2);newGame();
- return {state,visibleStars,shownRegions,frontier,eligible,startRound,nextRound,newGame,setMode,focusOn,submitAnswer,placeNeighbor,chartPoint,skyPosition,zoomAt,setMagnitude,renderMap};
+ $('game-mode').value=state.mode;$('magnitude').value=DEFAULT_MAGNITUDE_LIMIT.toFixed(2);$('starting-magnitude').value=DEFAULT_STARTING_MAGNITUDE.toFixed(2);newGame();
+ return {state,visibleStars,shownRegions,frontier,eligible,canStart,brightestMagnitude,startRound,nextRound,newGame,setMode,focusOn,submitAnswer,placeNeighbor,chartPoint,skyPosition,zoomAt,setMagnitude,setStartingMagnitude,renderMap};
 })();

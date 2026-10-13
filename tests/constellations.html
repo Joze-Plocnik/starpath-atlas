@@ -96,7 +96,7 @@ frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval
  assert(seen.size===eligible.length,'shuffle covers every eligible constellation');
  frame.style.width='320px';frame.style.height='1200px';const width=d.documentElement.clientWidth;
  assert(d.documentElement.scrollWidth<=width,'no horizontal mobile page overflow');
- for(const id of ['answer','check-answer','magnitude','new-game','game-mode']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile control visible '+id);}
+ for(const id of ['answer','check-answer','magnitude','starting-magnitude','new-game','game-mode']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile control visible '+id);}
  results.push('PASS: every magnitude-4 pattern and neighbor playable, inclusive cutoff, adjustable limit, accents, no empty patterns, nonrepeating rounds, reveal/skip scoring and mobile layout');
  document.getElementById('results').textContent=results.join('\n');
 }catch(error){document.getElementById('results').textContent='FAIL: '+error.stack;}};

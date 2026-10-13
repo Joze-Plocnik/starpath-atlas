@@ -5,7 +5,7 @@
  <meta name="viewport" content="width=device-width, initial-scale=1">
  <title>Starpath — Name the constellation</title>
  <meta name="description" content="Recognize constellations from their stars, then name and locate their neighbors within real IAU boundaries.">
- <link rel="stylesheet" href="constellation-game.css?v=classic-conquer-1">
+ <link rel="stylesheet" href="constellation-game.css?v=starting-brightness-1">
 </head>
 <body>
  <header>
@@ -21,7 +21,8 @@
    <div class="toolbar">
     <div class="steps"><span id="step-name" class="active">01 &nbsp; Name the pattern</span><span id="step-neighbors">02 &nbsp; Find its neighbors</span></div>
     <label class="game-mode-label" for="game-mode">Mode <select id="game-mode"><option value="classic">Classic</option><option value="conquer">Conquer</option></select></label>
-    <label class="magnitude-label" for="magnitude">Star magnitude ≤ <input id="magnitude" type="number" min="0" max="5" step="0.01" value="4.00" aria-describedby="limit-note"></label>
+    <label class="magnitude-label" for="magnitude">Show stars ≤ <input id="magnitude" type="number" min="0" max="5" step="0.01" value="4.00" aria-describedby="limit-note"></label>
+    <label class="magnitude-label starting-label" for="starting-magnitude">Starting brightest ≤ <input id="starting-magnitude" type="number" min="-2" max="5" step="0.01" value="4.00" aria-label="Maximum magnitude of a starting constellation's brightest star" aria-describedby="limit-note starting-count"></label>
     <button id="new-game" type="button">New game</button>
    </div>
    <div class="play-area">
@@ -49,7 +50,8 @@
      <button id="skip-round" class="secondary" type="button" hidden>Skip remaining neighbors</button>
      <button id="next-round" class="primary" type="button" hidden>Next constellation <span aria-hidden="true">→</span></button>
      <div class="round-stats"><div><span id="round-stat-label">ROUND</span><strong id="round-number">1</strong></div><div><span id="completed-stat-label">COMPLETED</span><strong id="completed-count">0</strong></div></div>
-     <p id="limit-note" class="note">The magnitude limit changes how many stars appear. Patterns with no stars at that limit are omitted.</p>
+     <p id="limit-note" class="note">Show stars sets what appears. Starting brightest requires a constellation's brightest star to meet that limit. Starting patterns must also have visible stars.</p>
+     <p id="starting-count" class="note" aria-live="polite"></p>
     </aside>
    </div>
   </section>
@@ -59,9 +61,10 @@
    <p><b>Classic mode:</b> find all neighbors of the starting constellation. Each found neighbor adds its stars to the map at the selected magnitude limit. Finding every neighbor advances to a new star-only round after a short pause, keeping your score. Reveal name and Skip remaining neighbors allow practice, without points for skipped answers.</p>
    <p><b>Conquer mode:</b> correctly identify the starting constellation to claim it, then name and place any unclaimed constellation bordering <em>any</em> of your claims. All claimed stars and borders remain available. Use <b>View around</b> to center the map on a claimed constellation and explore farther across the sky; traveling keeps claims, score, and a pending placement. There are no round resets or free reveals. Claim all <b>88 constellations</b> to finish, including constellations with no stars at the selected limit. Your final territory remains available to explore.</p>
    <p>Each correct constellation name or successful neighboring claim earns one point. Repeated answers earn no extra points. Switching modes or selecting New game starts a fresh game and resets the score. Changing the magnitude limit keeps earned points and claims; the bundled catalog supports limits up to 5.00. Only starting patterns with qualifying stars are used.</p>
+   <p><b>Two separate magnitude controls:</b> <b>Show stars</b> controls all displayed stars. <b>Starting brightest</b> allows a constellation to be chosen only when its brightest catalog star has magnitude at most this threshold. For example, Show stars 4.00 and Starting brightest 2.00 displays stars through magnitude 4 while choosing patterns with at least one magnitude-2-or-brighter star. Both rules apply to new starting patterns in Classic and Conquer. Changing either limit keeps scores and existing claims; an unanswered pattern is replaced if it stops qualifying. Neighbors and Conquer claims remain unrestricted, so all 88 constellations can still be claimed.</p>
    <p>This celestial atlas is independent of your location and time. Borders and neighbors use <a href="https://cdsarc.cds.unistra.fr/viz-bin/cat/VI/49">CDS VI/49</a> (Davenhall &amp; Leggett; adjacency data by Bill Gray), defined in B1875 and precessed to J2000 for display. Serpens's two regions are treated as one constellation. Stars use <a href="https://github.com/astronexus/HYG-Database">HYG v4.0</a> under CC BY-SA 4.0. <a href="https://github.com/Joze-Plocnik/starpath-atlas/blob/main/CONSTELLATION-SOURCES.md">Data credits and build instructions</a>.</p>
   </details>
  </main>
- <script src="bright-stars.js"></script><script src="constellation-data.js"></script><script src="sky-geometry.js"></script><script src="constellation-game.js?v=classic-conquer-1"></script>
+ <script src="bright-stars.js"></script><script src="constellation-data.js"></script><script src="sky-geometry.js"></script><script src="constellation-game.js?v=starting-brightness-1"></script>
 </body>
 </html>

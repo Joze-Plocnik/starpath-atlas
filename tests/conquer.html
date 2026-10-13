@@ -64,7 +64,7 @@ frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval
  results.push('PASS: persistent frontier, threshold changes, every constellation reachable including starless and polar regions, exact 88-claim victory, retained stars and finished-game travel');
  frame.style.width='320px';frame.style.height='1200px';const width=d.documentElement.clientWidth;
  assert(d.documentElement.scrollWidth<=width,'Conquer has no horizontal mobile overflow');
- for(const id of ['game-mode','magnitude','new-game','view-around']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile Conquer control fits '+id);}
+ for(const id of ['game-mode','magnitude','starting-magnitude','new-game','view-around']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile Conquer control fits '+id);}
  d.getElementById('new-game').click();assert(score()===0&&run('ConstellationGame.state.mode==="conquer"&&ConstellationGame.state.claimed.size===0&&ConstellationGame.state.phase==="identify"')&&!svg.querySelector('polyline,path,text'),'new Conquer clears territory and scores');
  mode('classic');run('ConstellationGame.startRound("Ori")');submit('Orion');
  for(const id of run('SkyGeometry.atlas.get("Ori").neighbors')){submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));const p=anchor('Ori',id);run('ConstellationGame.placeNeighbor('+p.x+','+p.y+')');}
