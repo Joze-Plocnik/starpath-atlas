@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><style>iframe{width:1200px;height:1100px;border:0}</style></head><body><pre id="results">RUNNING</pre><iframe id="app" src="../constellations.html"></iframe><script>
+const frame=document.getElementById('app');
+frame.onload=async()=>{const w=frame.contentWindow,d=w.document,run=code=>w.eval(code),assert=(value,message)=>{if(!value)throw Error(message)},results=[];try{
+ const svg=d.getElementById('constellation-sky'),hint=d.getElementById('boundary-hint');
+ function toggle(){hint.click();}
+ function submit(name){d.getElementById('answer').value=name;d.getElementById('answer-form').dispatchEvent(new w.Event('submit',{cancelable:true}));}
+ function stable(){return run('JSON.stringify({current:ConstellationGame.state.current,phase:ConstellationGame.state.phase,view:ConstellationGame.state.view,center:ConstellationGame.state.center,named:ConstellationGame.state.correctNames,neighbors:ConstellationGame.state.correctNeighbors,round:ConstellationGame.state.roundNumber,pending:ConstellationGame.state.pending,aim:ConstellationGame.state.aim,cursor:ConstellationGame.state.cursor,claims:[...ConstellationGame.state.claimed],found:[...ConstellationGame.state.foundNeighbors]})');}
+ function stars(){return JSON.stringify([...svg.querySelectorAll('[data-game-star]')].map(node=>[node.dataset.gameStar,node.getAttribute('cx'),node.getAttribute('cy'),node.getAttribute('r')]));}
+ function borders(){return JSON.stringify([...svg.querySelectorAll('[data-boundary]')].map(node=>[node.dataset.boundary,node.getAttribute('points')]));}
+ assert(!hint.checked&&hint.getAttribute('role')==='switch','accessible hint starts off');
+ for(const mode of ['classic','conquer']){
+  run('ConstellationGame.setMode('+JSON.stringify(mode)+');ConstellationGame.startRound("Ori")');
+  assert(!hint.checked&&!svg.querySelector('[data-boundary]'),'star-only default '+mode);
+  const before=stable(),starPoints=stars();d.getElementById('zoom-in').click();const zoomed=stable();
+  toggle();assert(hint.checked&&run('ConstellationGame.state.hint'),'native switch turns on '+mode);
+  assert(stable()===zoomed,'hint preserves zoom and game progress '+mode);
+  assert(svg.querySelector('.hint-border[data-boundary="Ori"]'),'current IAU outline appears '+mode);
+  assert([...svg.querySelectorAll('[data-boundary]')].every(node=>node.dataset.boundary==='Ori'),'only current boundary shown '+mode);
+  assert(!svg.querySelector('text,[data-game-star][data-constellation="Tau"]'),'no name or neighbor star leak '+mode);
+  assert(!svg.getAttribute('aria-label').includes('Orion')&&!d.getElementById('map-title').textContent.includes('ORION'),'accessible and visual titles keep answer hidden '+mode);
+  assert(svg.getAttribute('aria-label').includes('IAU boundary hint shown')&&d.getElementById('challenge-description').textContent.includes('hint'),'hint state described '+mode);
+  toggle();assert(stable()===zoomed&&!svg.querySelector('[data-boundary]'),'turning off hides unearned border '+mode);
+  d.getElementById('reset-view').click();assert(stable()===before&&stars()===starPoints,'hint never shifts stars or default view '+mode);
+  toggle();submit('Leo');assert(Number(d.getElementById('score').textContent)===0&&run('ConstellationGame.state.phase==="identify"'),'hint grants no identification or point '+mode);
+  const hintedOutline=borders();submit('Orion');assert(Number(d.getElementById('score').textContent)===1&&!svg.querySelector('.hint-border'),'correct answer still earns exactly one point '+mode);
+  assert(borders()===hintedOutline,'hint matches earned IAU boundary exactly '+mode);
+  submit('Taurus');svg.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',cancelable:true}));
+  const pending=stable(),earnedBorders=borders(),knownStars=stars(),answer=d.getElementById('answer').value;
+  toggle();assert(stable()===pending&&borders()===earnedBorders&&stars()===knownStars&&d.getElementById('answer').value===answer,'earned outline, pending placement and keyboard aim survive switching '+mode);
+  assert(svg.querySelector('[data-aim]')&&!svg.querySelector('[data-boundary="Tau"]'),'hint does not reveal unplaced target '+mode);
+  const p=run('ConstellationGame.chartPoint({ra:SkyGeometry.atlas.get("Ori").anchors.Tau[0],dec:SkyGeometry.atlas.get("Ori").anchors.Tau[1]})');
+  run('ConstellationGame.placeNeighbor('+p.x+','+p.y+')');const claimed=stable(),claimedBorders=borders();toggle();toggle();
+  assert(stable()===claimed&&borders()===claimedBorders&&svg.querySelector('[data-boundary="Tau"]')&&Number(d.getElementById('score').textContent)===2,'earned neighbor survives hint on/off '+mode);
+  toggle();run('ConstellationGame.newGame()');assert(hint.checked&&svg.querySelector('.hint-border')&&Number(d.getElementById('score').textContent)===0,'new game preserves hint preference '+mode);
+  toggle();
+ }
+ results.push('PASS: Classic and Conquer switches, exact IAU outlines, hidden answers/neighbors, unchanged views and stars, score protection, pending keyboard placement and earned borders');
+ run('ConstellationGame.setMode("classic");ConstellationGame.startRound("Ori")');toggle();
+ for(const id of ['Ser','Peg','UMi']){
+  run('ConstellationGame.startRound('+JSON.stringify(id)+')');assert(hint.checked&&svg.querySelector('.hint-border'),'hint carries to split, RA-wrap and polar patterns '+id);
+  const outline=borders();submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));assert(borders()===outline,'special geometry matches earned outline '+id);
+ }
+ run('ConstellationGame.startRound("Ori")');submit('Orion');
+ for(const id of run('SkyGeometry.atlas.get("Ori").neighbors')){
+  submit(run('SkyGeometry.atlas.get('+JSON.stringify(id)+').name'));
+  const p=run('ConstellationGame.chartPoint({ra:SkyGeometry.atlas.get("Ori").anchors['+JSON.stringify(id)+'][0],dec:SkyGeometry.atlas.get("Ori").anchors['+JSON.stringify(id)+'][1]})');run('ConstellationGame.placeNeighbor('+p.x+','+p.y+')');
+ }
+ const score=Number(d.getElementById('score').textContent);document.getElementById('results').textContent='RUNNING: checking automatic round with hint';await new Promise(resolve=>setTimeout(resolve,2400));
+ assert(run('ConstellationGame.state.phase==="identify"&&ConstellationGame.state.current!=="Ori"')&&hint.checked&&svg.querySelector('.hint-border')&&Number(d.getElementById('score').textContent)===score,'automatic next round keeps hint and score');
+ run('ConstellationGame.setMode("conquer")');assert(hint.checked&&svg.querySelector('.hint-border')&&Number(d.getElementById('score').textContent)===0,'mode change preserves hint and resets game');
+ frame.style.width='320px';frame.style.height='1200px';const width=d.documentElement.clientWidth;
+ assert(d.documentElement.scrollWidth<=width,'no horizontal mobile overflow');
+ for(const id of ['game-mode','magnitude','starting-magnitude','boundary-hint','new-game']){const box=d.getElementById(id).getBoundingClientRect();assert(box.left>=0&&box.right<=width,'mobile control fits '+id);}
+ const label=hint.closest('label').getBoundingClientRect();assert(label.left>=0&&label.right<=width,'entire hint label fits mobile');
+ results.push('PASS: split/RA-wrap/polar boundaries, automatic progression, round/new-game/mode preference retention and narrow-screen controls');
+ document.getElementById('results').textContent=results.join('\n');
+}catch(error){document.getElementById('results').textContent=results.join('\n')+'\nFAIL: '+error.stack;}};
+</script></body></html>

@@ -5,7 +5,7 @@
  <meta name="viewport" content="width=device-width, initial-scale=1">
  <title>Starpath — Name the constellation</title>
  <meta name="description" content="Recognize constellations from their stars, then name and locate their neighbors within real IAU boundaries.">
- <link rel="stylesheet" href="constellation-game.css?v=starting-brightness-1">
+ <link rel="stylesheet" href="constellation-game.css?v=boundary-hint-1">
 </head>
 <body>
  <header>
@@ -23,6 +23,7 @@
     <label class="game-mode-label" for="game-mode">Mode <select id="game-mode"><option value="classic">Classic</option><option value="conquer">Conquer</option></select></label>
     <label class="magnitude-label" for="magnitude">Show stars ≤ <input id="magnitude" type="number" min="0" max="5" step="0.01" value="4.00" aria-describedby="limit-note"></label>
     <label class="magnitude-label starting-label" for="starting-magnitude">Starting brightest ≤ <input id="starting-magnitude" type="number" min="-2" max="5" step="0.01" value="4.00" aria-label="Maximum magnitude of a starting constellation's brightest star" aria-describedby="limit-note starting-count"></label>
+    <label class="hint-label" for="boundary-hint"><input id="boundary-hint" type="checkbox" role="switch" aria-describedby="hint-note">Hint: IAU boundary</label>
     <button id="new-game" type="button">New game</button>
    </div>
    <div class="play-area">
@@ -56,6 +57,7 @@
    </div>
   </section>
   <details class="instructions"><summary>How to play &amp; atlas sources</summary>
+   <p id="hint-note"><b>Hint: IAU boundary</b> shows the unnamed starting constellation's official boundary in both Classic and Conquer. It reveals no name or neighboring stars and awards no points. The switch starts off and keeps your choice across rounds, new games, and mode changes. Turn it off to return to stars alone; borders earned by correct answers stay visible.</p>
    <p>Identify the constellation using only its stars. Use its full Latin name, such as Ursa Major; English translations and three-letter abbreviations are not accepted. A correct name earns one point and reveals the constellation's border.</p>
    <p>Then type a neighboring constellation's Latin name and select <b>Place neighbor</b>. Click or tap inside that constellation's actual region. Correct placement earns one point and reveals its stars, border, and name. Naming alone reveals nothing. Unknown constellations stay hidden. Any point inside the named constellation counts; it need not be near the shared edge. Drag to pan, use the zoom buttons, or use arrow keys and Enter to aim. Escape cancels a pending placement.</p>
    <p><b>Classic mode:</b> find all neighbors of the starting constellation. Each found neighbor adds its stars to the map at the selected magnitude limit. Finding every neighbor advances to a new star-only round after a short pause, keeping your score. Reveal name and Skip remaining neighbors allow practice, without points for skipped answers.</p>
@@ -65,6 +67,6 @@
    <p>This celestial atlas is independent of your location and time. Borders and neighbors use <a href="https://cdsarc.cds.unistra.fr/viz-bin/cat/VI/49">CDS VI/49</a> (Davenhall &amp; Leggett; adjacency data by Bill Gray), defined in B1875 and precessed to J2000 for display. Serpens's two regions are treated as one constellation. Stars use <a href="https://github.com/astronexus/HYG-Database">HYG v4.0</a> under CC BY-SA 4.0. <a href="https://github.com/Joze-Plocnik/starpath-atlas/blob/main/CONSTELLATION-SOURCES.md">Data credits and build instructions</a>.</p>
   </details>
  </main>
- <script src="bright-stars.js"></script><script src="constellation-data.js"></script><script src="sky-geometry.js"></script><script src="constellation-game.js?v=starting-brightness-1"></script>
+ <script src="bright-stars.js"></script><script src="constellation-data.js"></script><script src="sky-geometry.js"></script><script src="constellation-game.js?v=boundary-hint-1"></script>
 </body>
 </html>

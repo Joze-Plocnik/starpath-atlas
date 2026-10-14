@@ -11,7 +11,7 @@ const ConstellationGame = (() => {
   if (owner) groupedStars.get(owner).push(star);
  }
  const brightestMagnitude = new Map([...groupedStars].map(([id,stars])=>[id,Math.min(...stars.map(star=>star.mag))]));
- const state = {mode:'classic',current:null,phase:'identify',limit:DEFAULT_MAGNITUDE_LIMIT,startingLimit:DEFAULT_STARTING_MAGNITUDE,foundNeighbors:new Map(),claimed:new Map(),focus:null,pending:null,
+ const state = {mode:'classic',current:null,phase:'identify',hint:false,limit:DEFAULT_MAGNITUDE_LIMIT,startingLimit:DEFAULT_STARTING_MAGNITUDE,foundNeighbors:new Map(),claimed:new Map(),focus:null,pending:null,
   correctNames:0,correctNeighbors:0,roundsCompleted:0,roundNumber:0,visited:new Set(),
   center:null,view:null,defaultView:null,cursor:[500,350],aim:false};
  let drag = null, nextTimer = null;
@@ -118,10 +118,10 @@ const ConstellationGame = (() => {
   }else message('Correct — '+regions.get(id).name+' named and placed.');
   update();if(state.phase==='neighbors')$('answer').focus();return true;
  }
- function drawBoundary(id,neighbor=false) {
+ function drawBoundary(id,neighbor=false,hint=false) {
   for(const ring of SkyGeometry.boundarySamples(id)){
    let segment=[];
-   const flush=()=>{if(segment.length>1)element('polyline',{points:segment.map(p=>p.x.toFixed(3)+','+p.y.toFixed(3)).join(' '),class:'border'+(neighbor?' neighbor-border':''),'data-boundary':id,'aria-hidden':'true'});segment=[];};
+   const flush=()=>{if(segment.length>1)element('polyline',{points:segment.map(p=>p.x.toFixed(3)+','+p.y.toFixed(3)).join(' '),class:'border'+(neighbor?' neighbor-border':'')+(hint?' hint-border':''),'data-boundary':id,'aria-hidden':'true'});segment=[];};
    for(const position of ring){const p=chartPoint(position);if(!p||(segment.length&&Math.hypot(p.x-segment.at(-1).x,p.y-segment.at(-1).y)>500)){flush();if(p)segment.push(p);}else segment.push(p);}flush();
   }
  }
@@ -134,6 +134,7 @@ const ConstellationGame = (() => {
   if(!state.current)return;
   svg.setAttribute('viewBox',`${state.view.x} ${state.view.y} ${state.view.w} ${state.view.h}`);svg.replaceChildren();
   const unit=screenUnit();
+  if(state.phase==='identify'&&state.hint)drawBoundary(state.current,false,true);
   if(state.phase!=='identify'){
    const displayed=state.mode==='conquer'?state.claimed:new Map([[state.current,point(regions.get(state.current).label)],...state.foundNeighbors]);
    for(const [id,position] of displayed){drawBoundary(id,id!==state.current);drawLabel(id,position,id!==state.current);if(id!==state.current){const p=chartPoint(position);if(p)element('circle',{cx:p.x,cy:p.y,r:5*unit,class:'click-marker','aria-hidden':'true'});}}
@@ -148,11 +149,12 @@ const ConstellationGame = (() => {
   if(state.aim&&state.pending){const [x,y]=state.cursor; element('path',{d:`M${x-9*unit} ${y}H${x+9*unit}M${x} ${y-9*unit}V${y+9*unit}`,stroke:'#b8efda','stroke-width':unit,fill:'none','aria-hidden':'true','data-aim':'true'});}
   $('zoom-level').textContent=Math.round(state.defaultView.w/state.view.w*100)+'%';
   svg.classList.toggle('placing',!!state.pending);
-  svg.setAttribute('aria-label',state.phase==='identify'?'Unknown constellation: '+visibleStars().length+' stars. Enter its Latin name in the answer field.':state.pending?'Place '+regions.get(state.pending).name+'. Aim with arrow keys and press Enter.':state.mode==='conquer'?'Claimed constellations, centered on '+regions.get(state.focus).name+'.':regions.get(state.current).name+' and the neighbors you have found.');
+  svg.setAttribute('aria-label',state.phase==='identify'?'Unknown constellation: '+visibleStars().length+' stars.'+(state.hint?' IAU boundary hint shown.':'')+' Enter its Latin name in the answer field.':state.pending?'Place '+regions.get(state.pending).name+'. Aim with arrow keys and press Enter.':state.mode==='conquer'?'Claimed constellations, centered on '+regions.get(state.focus).name+'.':regions.get(state.current).name+' and the neighbors you have found.');
  }
  function update() {
   const region=regions.get(state.current),identifying=state.phase==='identify',complete=state.phase==='complete';
   const conquering=state.mode==='conquer';
+  $('boundary-hint').checked=state.hint;
   $('score').textContent=state.correctNames+state.correctNeighbors;$('named-count').textContent=state.correctNames;$('neighbor-count').textContent=state.correctNeighbors;
   $('round-stat-label').textContent=conquering?'CLAIMED':'ROUND';$('completed-stat-label').textContent=conquering?'REMAINING':'COMPLETED';
   $('round-number').textContent=conquering?state.claimed.size:state.roundNumber;$('completed-count').textContent=conquering?regions.size-state.claimed.size:state.roundsCompleted;
@@ -164,7 +166,7 @@ const ConstellationGame = (() => {
   $('step-neighbors').textContent=conquering?'02  Conquer the sky':'02  Find its neighbors';
   $('phase-label').textContent=identifying?'THE STAR PATTERN':complete?(conquering?'CONQUEST COMPLETE':'ROUND COMPLETE'):(conquering?'EXPAND YOUR TERRITORY':'THE BORDERING CONSTELLATIONS');
   $('challenge-title').textContent=identifying?'What constellation is this?':conquering?(complete?'Sky conquered!':'Claim the whole sky.'):region.name;
-  $('challenge-description').textContent=identifying?'Only its stars are visible. Enter the full Latin name to reveal its border.':conquering?(complete?'All 88 constellations are yours. Your final score stays on screen.':'Name and place any unclaimed constellation bordering any of your claims. Use View around to travel across the sky.'):(complete?'Every neighbor is named and placed. Your score carries into the next round.':'Its border is now visible. Name each neighbor, then click inside that constellation’s region.');
+  $('challenge-description').textContent=identifying?(state.hint?'Its stars and IAU boundary are visible as a hint. Enter the full Latin name.':'Only its stars are visible. Enter the full Latin name to reveal its border.'):conquering?(complete?'All 88 constellations are yours. Your final score stays on screen.':'Name and place any unclaimed constellation bordering any of your claims. Use View around to travel across the sky.'):(complete?'Every neighbor is named and placed. Your score carries into the next round.':'Its border is now visible. Name each neighbor, then click inside that constellation’s region.');
   $('answer-label').textContent=identifying?'LATIN CONSTELLATION NAME':'LATIN NAME OF A NEIGHBOR';
   $('check-answer').innerHTML=(identifying?'Check name':'Place neighbor')+' <span aria-hidden="true">→</span>';
   $('answer-form').hidden=complete;$('answer-note').hidden=complete;
@@ -182,6 +184,7 @@ const ConstellationGame = (() => {
   const w=Math.max(state.defaultView.w*.15,Math.min(state.defaultView.w*5,state.view.w*factor)),ratio=w/state.view.w;
   state.view={x:p.x+(state.view.x-p.x)*ratio,y:p.y+(state.view.y-p.y)*ratio,w,h:w*.7};renderMap();
  }
+ function setHint(enabled) {state.hint=!!enabled;update();}
  function setMagnitude(value) {
   if(!Number.isFinite(value)||value<0||value>5){$('magnitude').value=state.limit.toFixed(2);message('Choose a magnitude limit from 0.00 to 5.00.',true);return false;}
   state.limit=value;$('magnitude').value=value.toFixed(2);
@@ -215,10 +218,11 @@ const ConstellationGame = (() => {
  $('reveal-name').onclick=()=>revealName(false);$('skip-round').onclick=nextRound;$('next-round').onclick=nextRound;$('new-game').onclick=newGame;
  $('zoom-in').onclick=()=>zoomAt(.8);$('zoom-out').onclick=()=>zoomAt(1.25);$('reset-view').onclick=()=>{state.view={...state.defaultView};state.aim=false;renderMap();};
  $('magnitude').onchange=()=>setMagnitude(Number($('magnitude').value));
+ $('boundary-hint').onchange=()=>setHint($('boundary-hint').checked);
  $('starting-magnitude').onchange=()=>setStartingMagnitude($('starting-magnitude').value.trim()===''?NaN:Number($('starting-magnitude').value));
  $('game-mode').onchange=()=>setMode($('game-mode').value);
  $('view-around').onchange=()=>focusOn($('view-around').value);
  window.addEventListener('resize',renderMap);
  $('game-mode').value=state.mode;$('magnitude').value=DEFAULT_MAGNITUDE_LIMIT.toFixed(2);$('starting-magnitude').value=DEFAULT_STARTING_MAGNITUDE.toFixed(2);newGame();
- return {state,visibleStars,shownRegions,frontier,eligible,canStart,brightestMagnitude,startRound,nextRound,newGame,setMode,focusOn,submitAnswer,placeNeighbor,chartPoint,skyPosition,zoomAt,setMagnitude,setStartingMagnitude,renderMap};
+ return {state,visibleStars,shownRegions,frontier,eligible,canStart,brightestMagnitude,startRound,nextRound,newGame,setMode,focusOn,submitAnswer,placeNeighbor,chartPoint,skyPosition,zoomAt,setHint,setMagnitude,setStartingMagnitude,renderMap};
 })();
